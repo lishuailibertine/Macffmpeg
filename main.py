@@ -11,6 +11,7 @@ from ui.settings import SettingsPage
 from ui.models import ModelsPage
 from ui.translation import TranslationPage
 from ui.apikeys import APIKeysPage
+from ui.burning import SubtitleBurningPage
 
 class MainWindow(QMainWindow):
     def __init__(self):
@@ -41,6 +42,7 @@ class MainWindow(QMainWindow):
         self.sidebar.setFixedWidth(200)
         self.sidebar.addItem("Extraction")
         self.sidebar.addItem("Translation")
+        self.sidebar.addItem("Burn Subtitles")
         self.sidebar.addItem("Models")
         self.sidebar.addItem("API Keys")
         self.sidebar.addItem("Settings")
@@ -59,15 +61,19 @@ class MainWindow(QMainWindow):
         self.page_translation = TranslationPage()
         self.pages.addWidget(self.page_translation)
         
-        # Page 3: Models
+        # Page 3: Burn Subtitles
+        self.page_burning = SubtitleBurningPage()
+        self.pages.addWidget(self.page_burning)
+        
+        # Page 4: Models
         self.page_models = ModelsPage()
         self.pages.addWidget(self.page_models)
         
-        # Page 4: API Keys
+        # Page 5: API Keys
         self.page_apikeys = APIKeysPage()
         self.pages.addWidget(self.page_apikeys)
         
-        # Page 5: Settings
+        # Page 6: Settings
         self.page_settings = SettingsPage()
         self.page_settings.style_changed.connect(self.apply_styles) # Re-apply styles
         self.pages.addWidget(self.page_settings)
