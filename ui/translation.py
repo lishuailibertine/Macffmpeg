@@ -173,8 +173,7 @@ class TranslationPage(QWidget):
 
         # Provider Selection
         self.provider_combo = QComboBox()
-        self.provider_combo.currentIndexChanged.connect(self.update_key_tooltip)
-        control_layout.addRow("API Key:", self.provider_combo)
+        control_layout.addRow("Service Provider:", self.provider_combo)
 
         # Language
         self.lang_combo = QComboBox()
@@ -185,15 +184,6 @@ class TranslationPage(QWidget):
         self.lang_combo.setEditable(True)
         control_layout.addRow("Target Language:", self.lang_combo)
         
-        # Advanced: Model & Base URL
-        self.model_input = QLineEdit("gpt-3.5-turbo")
-        self.model_input.setPlaceholderText("e.g. gpt-4, gpt-3.5-turbo, deepseek-chat")
-        control_layout.addRow("Model Name:", self.model_input)
-        
-        self.base_url_input = QLineEdit()
-        self.base_url_input.setPlaceholderText("Optional (e.g. https://api.deepseek.com/v1)")
-        control_layout.addRow("Base URL:", self.base_url_input)
-
         control_group.setLayout(control_layout)
         layout.addWidget(control_group)
 
@@ -229,38 +219,57 @@ class TranslationPage(QWidget):
     def refresh_providers(self):
         self.provider_combo.clear()
         import json
-        keys_list_str = self.settings.value("api_keys_list", "[]")
+        
+        # Load Main Services Config
+        service_configs_str = self.settings.value("service_configs", "{}")
         try:
-            self.keys_list = json.loads(keys_list_str)
+            service_configs = json.loads(service_configs_str)
         except:
-            self.keys_list = []
-            
-        for i, item in enumerate(self.keys_list):
-            provider = item.get("provider", "Unknown")
-            key_preview = item.get("key", "")[:4] + "..."
-            # Store full item dict as userData
-            self.provider_combo.addItem(f"{provider} - {key_preview}", userData=item)
-            
-        if not self.keys_list:
-             self.provider_combo.addItem("No Keys Found (Add in API Keys Tab)")
-             
-        # Trigger update for initial selection
-        self.update_key_tooltip()
+            service_configs = {}
 
-    def update_key_tooltip(self):
-        data = self.provider_combo.currentData()
-        if not data or not isinstance(data, dict):
-            return
+        # Load Custom Services List to map keys to names
+        custom_services_str = self.settings.value("custom_services_list", "[]")
+        try:
+            custom_services = json.loads(custom_services_str)
+        except:
+            custom_services = []
             
-        # Auto-fill from stored config
-        model = data.get("model", "")
-        base_url = data.get("base_url", "")
-        
-        self.model_input.setText(model)
-        self.base_url_input.setText(base_url)
-        
+        # Name Mapping (Key -> Friendly Name)
+        # Default known services
+        name_map = {
+            "deepseek": "DeepSeek",
+            "openai": "OpenAI",
+            "baidu": "Baidu Translate",
+            "aliyun": "Aliyun Translate",
+            "volcengine": "Volcengine",
+            "deeplx": "DeepLX",
+            "ollama": "Ollama"
+        }
+        # Update with Custom Services
+        for cs in custom_services:
+            name_map[cs["key"]] = cs["name"]
+
+        # Populate Combo Box
+        count = 0
+        for service_key, config in service_configs.items():
+            if not config: continue # Skip empty configs
+            
+            # Determine display name
+            display_name = name_map.get(service_key, service_key.capitalize())
+            
+            # Check if this service has enough info (API Key or similar)
+            # Just a basic check, real validation happens at runtime
+            has_creds = any(k in config for k in ["api_key", "app_id", "access_key", "endpoint", "base_url"])
+            
+            if has_creds:
+                self.provider_combo.addItem(display_name, userData={"key": service_key, "config": config})
+                count += 1
+            
+        if count == 0:
+             self.provider_combo.addItem("No Configured Services Found (Go to API Keys)", userData=None)
+
     def showEvent(self, event):
-        # Refresh providers whenever tab is shown
+        # Refresh providers whenever tab is shown to catch updates
         self.refresh_providers()
         super().showEvent(event)
 
@@ -274,24 +283,55 @@ class TranslationPage(QWidget):
 
     def start_translation(self):
         # Get selected Data
-        data = self.provider_combo.currentData()
+        item_data = self.provider_combo.currentData()
         
-        if not data or not isinstance(data, dict):
-            QMessageBox.warning(self, "Missing API Key", "Please select a valid API Key from the list.")
+        if not item_data or not isinstance(item_data, dict):
+            QMessageBox.warning(self, "Configuration Error", "Please select a valid, configured service provider.")
             return
 
-        api_key = data.get("key")
-
-        target_lang = self.lang_combo.currentText()
-        model_name = self.model_input.text().strip()
-        base_url = self.base_url_input.text().strip() or None
+        service_key = item_data.get("key")
+        config = item_data.get("config", {})
         
+        # Extract fields based on service type logic (Unified mainly for OpenAI/DeepSeek currently)
+        # For this version, we support generic OpenAI-compatible services primarily
+        api_key = config.get("api_key", "")
+        # Fallback for some specific ones if needed, but 'api_key' is standard for new config
+        
+        target_lang = self.lang_combo.currentText()
+        
+        # Get Model and Base URL directly from config
+        model_name = config.get("model", "").strip()
+        base_url = config.get("base_url", "").strip()
+        
+        # Smart Defaults if missing in config
+        if not model_name:
+            if service_key == "deepseek":
+                model_name = "deepseek-chat"
+            elif service_key == "openai":
+                model_name = "gpt-3.5-turbo"
+            else:
+                model_name = "gpt-3.5-turbo" # Fallback
+        
+        # DeepSeek specific default URL if missing
+        if service_key == "deepseek" and not base_url:
+            base_url = "https://api.deepseek.com"
+        
+        if not api_key:
+             QMessageBox.warning(self, "Configuration Error", f"The selected service '{self.provider_combo.currentText()}' is missing an API Key.")
+             return
+
         self.translate_btn.setEnabled(False)
         self.progress_bar.setVisible(True)
         self.progress_bar.setValue(0)
         self.log_output.clear()
         
+        self.log_output.append(f"Using Service: {service_key}")
+        self.log_output.append(f"Model: {model_name}")
+        self.log_output.append(f"Base URL: {base_url if base_url else 'Default'}")
+        self.log_output.append("-" * 30)
+        
         self.worker = TranslationWorker(api_key, self.file_path, target_lang, model=model_name, base_url=base_url)
+
         self.worker.log.connect(self.log_output.append)
         self.worker.progress.connect(self.progress_bar.setValue)
         self.worker.finished.connect(self.handle_finished)
