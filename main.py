@@ -3,9 +3,9 @@ import os
 import traceback
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QHBoxLayout, 
-    QListWidget, QStackedWidget, QMessageBox
+    QListWidget, QStackedWidget, QMessageBox, QAbstractItemView
 )
-from PyQt6.QtCore import QSettings
+from PyQt6.QtCore import QSettings, Qt
 
 # Import module classes
 from ui.extraction import ExtractionPage
@@ -42,12 +42,14 @@ class MainWindow(QMainWindow):
         # Sidebar
         self.sidebar = QListWidget()
         self.sidebar.setFixedWidth(200)
-        self.sidebar.addItem("Extraction")
-        self.sidebar.addItem("Translation")
-        self.sidebar.addItem("Burn Subtitles")
-        self.sidebar.addItem("Models")
-        self.sidebar.addItem("API Keys")
-        self.sidebar.addItem("Settings")
+        self.sidebar.setVerticalScrollMode(QAbstractItemView.ScrollMode.ScrollPerPixel)
+        
+        self.sidebar.addItem("🎬 Extraction")
+        self.sidebar.addItem("🌐 Translation")
+        self.sidebar.addItem("🔥 Burn Subtitles")
+        self.sidebar.addItem("📦 Models")
+        self.sidebar.addItem("🔑 API Keys")
+        self.sidebar.addItem("⚙️ Settings")
         
         self.main_layout.addWidget(self.sidebar)
 
@@ -111,13 +113,18 @@ class MainWindow(QMainWindow):
                 font-size: {font_size + 1}px;
             }}
             QListWidget::item {{
-                padding: 15px;
+                padding: 12px 15px;
                 color: {fg_color};
+                margin: 4px 8px; /* Spacing for pill shape */
+                border-radius: 6px;
+            }}
+            QListWidget::item:hover {{
+                background-color: #2a2d2e; /* Subtle hover */
             }}
             QListWidget::item:selected {{
-                background-color: #37373d;
+                background-color: #007bff; /* Primary active color */
                 color: white;
-                border-left: 2px solid #007bff;
+                border-radius: 6px;
             }}
             
             QGroupBox {{
